@@ -17,6 +17,9 @@ return [
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
+    'whatsapp'=>[
+        'number'=>env('WHATSAPP_PHONE_NUMBER_ID','254701071662'),
+    ],
 
     'resend' => [
         'key' => env('RESEND_API_KEY'),
