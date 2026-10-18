@@ -19,7 +19,7 @@ class GenerateSitemap extends Command
      *
      * @var string
      */
-    protected $description = 'Generate the dynamic sitemap.xml file for Jostech';
+    protected $description = 'Generate the dynamic sitemap.xml file for Jostech Shop';
 
     /**
      * Execute the console command.
