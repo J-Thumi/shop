@@ -194,7 +194,7 @@
 
                     @endif
 
-                    @if($product->product_link)
+                    <!-- @if($product->product_link)
 
                         <a
                             href="{{ $product->product_link }}"
@@ -209,7 +209,7 @@
                             </svg>
                         </a>
 
-                    @endif
+                    @endif -->
 
                 </div>
 
