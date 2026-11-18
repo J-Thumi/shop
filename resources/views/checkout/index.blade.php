@@ -164,14 +164,17 @@
                             @foreach($cart->items as $item)
                                 @if($item->product)
                                     @php
-                                        $checkoutSubtotal = 0;
+                                        $regular = is_numeric($item->product->regular_price)
+                                            ? (float) $item->product->regular_price
+                                            : 0;
 
-                                        foreach ($cart->items as $item) {
-                                            if ($item->product) {
-                                                $checkoutSubtotal +=
-                                                    $prices->getPrice($item->product) * $item->quantity;
-                                            }
-                                        }
+                                        $sale = is_numeric($item->product->sale_price)
+                                            ? (float) $item->product->sale_price
+                                            : null;
+
+                                        $price = ($sale && $sale > 0 && $sale < $regular)
+                                            ? $sale
+                                            : $regular;
                                     @endphp
 
                                     <div class="flex justify-between gap-3 text-sm">
@@ -182,10 +185,15 @@
                                             <p class="text-zinc-500">
                                                 Quantity: {{ $item->quantity }}
                                             </p>
+                                            <p class="text-zinc-500">
+                                                Price of One: {{ ($sale && $sale > 0 && $sale < $regular)
+                                            ? $sale
+                                            : $regular}}
+                                            </p>
                                         </div>
 
                                         <p class="font-semibold text-zinc-900 whitespace-nowrap">
-                                            KES {{ number_format($checkoutSubtotal, 2) }}
+                                            KES {{ number_format($price * $item->quantity, 2) }}
                                         </p>
                                     </div>
                                 @endif
