@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Services\EmailOtpService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\View\View;
 
 class LoginController extends Controller
@@ -19,58 +22,57 @@ class LoginController extends Controller
     }
 
     /**
-     * Handle an incoming authentication request.
+     * Validate credentials and send an email OTP.
      */
-    
     public function store(
         Request $request,
-        \App\Services\EmailOtpService $otpService
+        EmailOtpService $otpService
     ): RedirectResponse {
         $credentials = $request->validate([
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
         ]);
 
+        $credentials['email'] = strtolower(trim($credentials['email']));
+
         $remember = $request->boolean('remember');
 
-        $key = 'login:' . strtolower($credentials['email']) . ':' . $request->ip();
+        $key = 'login:' . $credentials['email'] . ':' . $request->ip();
 
-        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($key, 5)) {
+        if (RateLimiter::tooManyAttempts($key, 5)) {
             return back()->withErrors([
                 'email' => 'Too many login attempts. Please try again later.',
             ])->onlyInput('email');
         }
 
         if (!Auth::validate($credentials)) {
-            \Illuminate\Support\Facades\RateLimiter::hit($key, 60);
+            RateLimiter::hit($key, 60);
 
             return back()->withErrors([
                 'email' => 'The provided credentials do not match our records.',
             ])->onlyInput('email');
         }
 
-        \Illuminate\Support\Facades\RateLimiter::clear($key);
+        RateLimiter::clear($key);
 
-        $user = \App\Models\User::where('email', $credentials['email'])->firstOrFail();
+        $user = User::where('email', $credentials['email'])->firstOrFail();
 
+        // If the email is already verified, still require OTP for
+        // password-based login, as intended by this authentication flow.
         $otp = $otpService->send($user);
 
         $request->session()->put([
             'pending_otp_id' => $otp->id,
             'pending_otp_user_id' => $user->id,
             'pending_otp_remember' => $remember,
-            'pending_otp_fallback' => $user->role === 'organizer'
-                ? route('organizer.dashboard')
-                : route('events.index'),
         ]);
 
         return redirect()->route('otp.create')
             ->with('status', 'We have sent a verification code to your email address.');
     }
 
-
     /**
-     * Destroy an authenticated session (Logout).
+     * Log out the authenticated customer.
      */
     public function destroy(Request $request): RedirectResponse
     {
@@ -79,6 +81,6 @@ class LoginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()->route('products.index');
     }
 }

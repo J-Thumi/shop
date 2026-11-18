@@ -14,15 +14,24 @@ use Illuminate\View\View;
 
 class EmailOtpController extends Controller
 {
+    /**
+     * Display the OTP verification page.
+     */
     public function create(Request $request): View|RedirectResponse
     {
-        if (!$request->session()->has('pending_otp_id')) {
+        if (
+            !$request->session()->has('pending_otp_id') ||
+            !$request->session()->has('pending_otp_user_id')
+        ) {
             return redirect()->route('login');
         }
 
         return view('auth.verify-otp');
     }
 
+    /**
+     * Verify the OTP and authenticate the customer.
+     */
     public function store(
         Request $request,
         EmailOtpService $otpService
@@ -36,7 +45,9 @@ class EmailOtpController extends Controller
 
         if (!$otpId || !$userId) {
             return redirect()->route('login')
-                ->withErrors(['code' => 'Your verification session has expired. Please log in again.']);
+                ->withErrors([
+                    'code' => 'Your verification session has expired. Please log in again.',
+                ]);
         }
 
         $key = 'otp-verify:' . $userId . ':' . $request->ip();
@@ -52,7 +63,16 @@ class EmailOtpController extends Controller
             ->first();
 
         if (!$otp) {
-            return redirect()->route('login');
+            $request->session()->forget([
+                'pending_otp_id',
+                'pending_otp_user_id',
+                'pending_otp_remember',
+            ]);
+
+            return redirect()->route('login')
+                ->withErrors([
+                    'email' => 'Your verification code could not be found. Please log in again.',
+                ]);
         }
 
         if (!$otpService->verify($otp, $request->input('code'))) {
@@ -67,37 +87,41 @@ class EmailOtpController extends Controller
 
         $user = User::findOrFail($userId);
 
-        // The OTP proves control of the email address.
+        // The OTP proves control of the customer's email address.
         if (!$user->email_verified_at) {
             $user->forceFill([
                 'email_verified_at' => now(),
             ])->save();
         }
 
-        $remember = $request->session()->pull('pending_otp_remember', false);
+        $remember = $request->session()->pull(
+            'pending_otp_remember',
+            false
+        );
 
+        // Authenticate the customer.
         Auth::login($user, $remember);
 
-        // Remove temporary authentication state.
+        // Clear temporary OTP authentication state.
         $request->session()->forget([
             'pending_otp_id',
             'pending_otp_user_id',
-            'pending_otp_remember',
         ]);
 
+        // Regenerate the session after authentication.
         $request->session()->regenerate();
 
-        $fallback = $request->session()->pull('pending_otp_fallback')
-            ?? ($user->role === 'organizer'
-                ? route('organizer.create')
-                : route('events.index'));
-
-        $appName = config('app.name');
-
-        return redirect()->intended($fallback)
-            ->with('status', 'Your email has been verified. Welcome to ' . $appName . '!');
+        return redirect()->intended(route('products.index'))
+            ->with(
+                'status',
+                'Your email has been verified. Welcome to ' .
+                config('app.name') . '!'
+            );
     }
 
+    /**
+     * Resend the verification code.
+     */
     public function resend(
         Request $request,
         EmailOtpService $otpService
@@ -111,6 +135,12 @@ class EmailOtpController extends Controller
         $user = User::find($userId);
 
         if (!$user) {
+            $request->session()->forget([
+                'pending_otp_id',
+                'pending_otp_user_id',
+                'pending_otp_remember',
+            ]);
+
             return redirect()->route('login');
         }
 

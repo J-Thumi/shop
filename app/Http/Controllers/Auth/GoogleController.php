@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -16,7 +17,7 @@ use Throwable;
 class GoogleController extends Controller
 {
     /**
-     * Redirect the user to Google.
+     * Redirect the customer to Google.
      */
     public function redirect(Request $request): RedirectResponse
     {
@@ -39,7 +40,7 @@ class GoogleController extends Controller
     public function callback(Request $request): RedirectResponse
     {
         if ($request->has('error')) {
-            $request->session()->forget('google_auth_intent');
+            $this->clearGoogleSession($request);
 
             return redirect()->route('login')
                 ->withErrors([
@@ -47,9 +48,10 @@ class GoogleController extends Controller
                 ]);
         }
 
+        $intent = $request->session()->pull('google_auth_intent', 'login');
+
         try {
             $googleUser = Socialite::driver('google')->user();
-
         } catch (Throwable $e) {
             report($e);
 
@@ -59,7 +61,7 @@ class GoogleController extends Controller
                 ]);
         }
 
-        // Ensure Google provides a verified email.
+        // Only accept a verified Google email address.
         if (
             empty($googleUser->email) ||
             !filter_var($googleUser->email, FILTER_VALIDATE_EMAIL) ||
@@ -71,70 +73,75 @@ class GoogleController extends Controller
                 ]);
         }
 
-        $email = strtolower($googleUser->email);
+        $email = strtolower(trim($googleUser->email));
+        $googleId = $googleUser->getId();
 
-        // 1. Find an account already linked to this Google account.
-        $user = User::where('google_id', $googleUser->getId())->first();
+        // 1. Check whether this Google account is already linked.
+        $user = User::where('google_id', $googleId)->first();
 
         if ($user) {
-
-            // Ensure the linked account email matches.
+            // Prevent a Google identity from authenticating an account
+            // whose email no longer matches.
             if (strtolower($user->email) !== $email) {
                 return redirect()->route('login')
                     ->withErrors([
-                        'email' => 'Your Google account email does not match your linked account.',
+                        'email' => 'Your Google email does not match the email linked to your account.',
                     ]);
             }
 
-        } else {
+            $user->forceFill([
+                'google_avatar' => $googleUser->getAvatar(),
+                'email_verified_at' => $user->email_verified_at ?? now(),
+            ])->save();
 
-            // 2. Check whether an ordinary account already exists.
-            $user = User::where('email', $email)->first();
-
-            if ($user) {
-
-                // Do not link a Google account already associated
-                // with a different Google identity.
-                if ($user->google_id !== null) {
-                    return redirect()->route('login')
-                        ->withErrors([
-                            'email' => 'This account is already linked to another Google account.',
-                        ]);
-                }
-
-                // Link the verified Google identity.
-                $user->forceFill([
-                    'google_id' => $googleUser->getId(),
-                    'google_avatar' => $googleUser->getAvatar(),
-                    'email_verified_at' => $user->email_verified_at ?? now(),
-                ])->save();
-
-            } else {
-
-                // 3. New Google user: collect missing registration details.
-                $request->session()->put('google_registration', [
-                    'google_id' => $googleUser->getId(),
-                    'name' => $googleUser->getName() ?: 'Google User',
-                    'email' => $email,
-                    'avatar' => $googleUser->getAvatar(),
-                ]);
-
-                return redirect()->route('google.complete');
-            }
+            return $this->authenticateUser($request, $user, false);
         }
 
-        // 4. Google has verified ownership of the email.
-        $user->forceFill([
-            'email_verified_at' => $user->email_verified_at ?? now(),
-            'google_avatar' => $googleUser->getAvatar(),
-        ])->save();
+        // 2. Check whether a normal ecommerce account already exists.
+        $user = User::where('email', $email)->first();
 
-        // 5. Authenticate immediately. No OTP required.
-        return $this->authenticateUser($request, $user, false);
+        if ($user) {
+            // Do not overwrite an existing Google identity.
+            if ($user->google_id !== null) {
+                return redirect()->route('login')
+                    ->withErrors([
+                        'email' => 'This account is already linked to another Google account.',
+                    ]);
+            }
+
+            // Google has verified ownership of this email.
+            // Link the existing customer account.
+            $user->forceFill([
+                'google_id' => $googleId,
+                'google_avatar' => $googleUser->getAvatar(),
+                'email_verified_at' => $user->email_verified_at ?? now(),
+            ])->save();
+
+            return $this->authenticateUser($request, $user, false);
+        }
+
+        // 3. No existing account was found.
+        // Do not silently register a customer who selected Login.
+        if ($intent === 'login') {
+            return redirect()->route('login')
+                ->withErrors([
+                    'email' => 'No account exists with this Google email. Please create an account first.',
+                ]);
+        }
+
+        // 4. Start the ecommerce registration process.
+        $request->session()->put('google_registration', [
+            'google_id' => $googleId,
+            'name' => $googleUser->getName() ?: 'Customer',
+            'email' => $email,
+            'avatar' => $googleUser->getAvatar(),
+        ]);
+
+        return redirect()->route('google.complete');
     }
 
     /**
-     * Show the remaining registration details form.
+     * Display the remaining customer registration form.
      */
     public function complete(Request $request)
     {
@@ -150,7 +157,7 @@ class GoogleController extends Controller
     }
 
     /**
-     * Complete Google registration.
+     * Complete ecommerce customer registration.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -167,20 +174,46 @@ class GoogleController extends Controller
                 'max:20',
                 'unique:users,phone',
             ],
-            'role' => [
+            'terms' => [
                 'required',
-                Rule::in(['customer', 'organizer', 'marketer']),
+                'accepted',
             ],
-            'terms' => ['required', 'accepted'],
         ], [
-            'terms.accepted' => 'You must accept the terms of service and privacy policy to continue.',
+            'terms.accepted' => 'You must accept the Terms of Service and Privacy Policy to continue.',
         ]);
 
-        // Prevent duplicate accounts.
-        if (
-            User::where('email', $googleData['email'])->exists() ||
-            User::where('google_id', $googleData['google_id'])->exists()
-        ) {
+        // Create the account inside a transaction.
+        $user = DB::transaction(function () use ($googleData, $validated) {
+
+            // Protect against duplicate registrations.
+            $existingUser = User::where('email', $googleData['email'])
+                ->orWhere('google_id', $googleData['google_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if ($existingUser) {
+                return null;
+            }
+
+            $user = new User();
+
+            $user->forceFill([
+                'name' => $googleData['name'],
+                'email' => $googleData['email'],
+                'phone' => $validated['phone'],
+                'password' => Hash::make(Str::random(64)),
+                'google_id' => $googleData['google_id'],
+                'google_avatar' => $googleData['avatar'],
+                'email_verified_at' => now(),
+                'terms_accepted_at' => now(),
+            ]);
+
+            $user->save();
+
+            return $user;
+        });
+
+        if (!$user) {
             $request->session()->forget('google_registration');
 
             return redirect()->route('login')
@@ -189,28 +222,15 @@ class GoogleController extends Controller
                 ]);
         }
 
-        // Create a fully verified Google account with consent timestamp.
-        $user = User::create([
-            'uuid' => (string) Str::uuid(),
-            'name' => $googleData['name'],
-            'email' => $googleData['email'],
-            'phone' => $validated['phone'],
-            'password' => Hash::make(Str::random(64)),
-            'role' => $validated['role'],
-            'google_id' => $googleData['google_id'],
-            'google_avatar' => $googleData['avatar'],
-            'email_verified_at' => now(),
-            'terms_accepted_at' => now(),
-        ]);
-
         $request->session()->forget('google_registration');
 
-        // Authenticate immediately. No OTP required.
+        // Google has already verified the customer's email.
+        // No additional email OTP is necessary.
         return $this->authenticateUser($request, $user, true);
     }
 
     /**
-     * Authenticate the Google user and redirect according to role.
+     * Authenticate the customer and redirect to the shop.
      */
     private function authenticateUser(
         Request $request,
@@ -218,7 +238,7 @@ class GoogleController extends Controller
         bool $registration
     ): RedirectResponse {
 
-        // Remove any unfinished normal-login OTP state.
+        // Clear unfinished authentication and registration state.
         $request->session()->forget([
             'pending_otp_id',
             'pending_otp_user_id',
@@ -230,25 +250,28 @@ class GoogleController extends Controller
 
         Auth::login($user, false);
 
-        // Regenerate session ID after authentication.
+        // Regenerate session ID to prevent session fixation.
         $request->session()->regenerate();
 
-        // Preserve role-based navigation.
-        if ($user->role === 'organizer') {
-            $destination = $registration
-                ? route('organizer.create')
-                : route('organizer.dashboard');
-        } else {
-            $destination = route('events.index');
-        }
-
-
-        return redirect()->to($destination)
+        // Return the customer to their intended destination.
+        // Otherwise, take them to the product catalogue.
+        return redirect()->intended(route('products.index'))
             ->with(
                 'status',
                 $registration
                     ? 'Your ' . config('app.name') . ' account has been created successfully!'
                     : 'You have successfully signed in with Google.'
             );
+    }
+
+    /**
+     * Clear unfinished Google authentication state.
+     */
+    private function clearGoogleSession(Request $request): void
+    {
+        $request->session()->forget([
+            'google_auth_intent',
+            'google_registration',
+        ]);
     }
 }
