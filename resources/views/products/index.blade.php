@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
-@section('meta_title', 'Products | Security, Networking & Technical Equipment | JosTech Kenya')
+@section('meta_title', 'Products | Security, Networking & Technical Equipment | ' . config('app.name') . ' Kenya')
 
-@section('meta_description', 'Browse JosTech Kenya products including CCTV cameras, access control, electric fencing, networking equipment, fire alarm systems, gate automation and more.')
+@section('meta_description', 'Browse ' . config('app.name') . ' Kenya products including CCTV cameras, access control, electric fencing, networking equipment, fire alarm systems, gate automation and more.')
 
 @section('content')
 
@@ -81,7 +81,7 @@
 
                     <p class="mt-2 max-w-2xl text-sm sm:text-base text-zinc-500 leading-6">
                         Browse security, networking, access control, electrical
-                        and professional technical equipment available from JosTech.
+                        and professional technical equipment available from {{config('app.name')}}.
                     </p>
 
                 </div>
@@ -533,7 +533,7 @@
                         </h3>
 
                         <p class="text-xs text-zinc-600 leading-5 mt-1">
-                            Contact JosTech and get help finding the right equipment.
+                            Contact {{config('app.name')}} and get help finding the right equipment.
                         </p>
 
                         <a
@@ -859,32 +859,48 @@
 
 
                                     {{-- Actions --}}
+                                    
                                     <div class="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2">
 
-                                        <a
-                                            href="{{ route('products.show', $product) }}"
-                                            class="flex-1 h-9 inline-flex items-center justify-center rounded-md bg-zinc-950 hover:bg-brand-600 text-white text-xs font-bold transition-colors"
-                                        >
+                                        <a href="{{ route('products.show', $product) }}"
+                                        class="flex-1 h-9 inline-flex items-center justify-center rounded-md bg-zinc-950 hover:bg-orange-600 text-white text-xs font-bold transition-colors">
                                             View product
                                         </a>
 
-                                        <a
-                                            href="https://wa.me/{{ config('services.whatsapp.number') }}?text={{ urlencode('Hello JosTech, I am interested in ' . $product->title . '. ' . route('products.show', $product)) }}"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            aria-label="Ask about {{ $product->title }} on WhatsApp"
-                                            class="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-md border border-zinc-300 text-zinc-600 hover:border-brand-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
-                                        >
-                                            <svg
-                                                class="w-4 h-4"
-                                                fill="currentColor"
+                                        <form action="{{ route('cart.store') }}" method="POST">
+                                            @csrf
+
+                                            <input type="hidden" name="product_id" value="{{ $product->id }}">
+                                            <input type="hidden" name="quantity" value="1">
+
+                                            <button type="submit"
+                                                    aria-label="Add {{ $product->title }} to cart"
+                                                    title="Add to cart"
+                                                    class="w-9 h-9 inline-flex items-center justify-center rounded-md border border-orange-200 text-orange-600 hover:bg-orange-500 hover:text-white transition-colors">
+                                                🛒
+                                            </button>
+                                        </form>
+
+                                        <a href="https://wa.me/{{ config('services.whatsapp.number') }}?text={{ urlencode('Hello ' . config('app.name') . ', I am interested in ' . $product->title . '. ' . route('products.show', $product)) }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label="Ask about {{ $product->title }} on WhatsApp"
+                                        class="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-md border border-zinc-300 text-zinc-600 hover:border-orange-500 hover:text-orange-600 transition-colors">
+                                            <svg xmlns="http://www.w3.org/2000/svg"
+                                                width="17"
+                                                height="17"
                                                 viewBox="0 0 24 24"
-                                            >
-                                                <path d="M20.52 3.48A11.87 11.87 0 0 0 12.04 0C5.49 0 .16 5.33.16 11.88c0 2.09.55 4.13 1.6 5.93L.05 24l6.34-1.66a11.88 11.88 0 0 0 5.65 1.43h.01c6.55 0 11.88-5.33 11.88-11.88 0-3.18-1.24-6.17-3.41-8.41ZM12.05 21.7h-.01a9.82 9.82 0 0 1-5.01-1.37l-.36-.21-3.76.99 1-3.67-.23-.38a9.84 9.84 0 1 1 8.37 4.64Zm5.39-7.38c-.3-.15-1.78-.88-2.06-.98-.28-.1-.48-.15-.68.15-.2.3-.78.98-.96 1.18-.18.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.47-.89-.79-1.49-1.76-1.67-2.06-.17-.3-.02-.46.13-.61.14-.14.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.68-1.63-.93-2.23-.24-.58-.49-.5-.68-.51h-.58c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.5s1.07 2.9 1.22 3.1c.15.2 2.1 3.21 5.08 4.5.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.78-.73 2.03-1.43.25-.7.25-1.3.17-1.43-.07-.12-.27-.2-.57-.35Z"/>
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round">
+                                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
                                             </svg>
                                         </a>
 
                                     </div>
+
 
                                 </div>
 

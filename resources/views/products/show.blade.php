@@ -169,47 +169,33 @@
 
 
             {{-- Purchase / enquiry area --}}
+          
             <div class="py-6 border-b border-gray-200">
 
                 <p class="text-sm font-semibold text-gray-900 mb-3">
                     Interested in this product?
                 </p>
 
-                <div class="flex flex-col sm:flex-row gap-3">
+                <div class="flex flex-wrap gap-3">
 
-                    @if($product->whatsapp_order_link)
+                    <form action="{{ route('cart.store') }}" method="POST">
+                        @csrf
 
-                        <a
-                            href="{{ $product->whatsapp_order_link }}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="flex-1 inline-flex items-center justify-center gap-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold px-6 py-3.5 transition-colors duration-200"
-                        >
-                            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M12.04 2C6.54 2 2.07 6.47 2.07 11.97c0 1.76.46 3.48 1.33 5L2 22l5.18-1.36a9.93 9.93 0 004.86 1.27h.01c5.5 0 9.97-4.47 9.97-9.97C22.02 6.47 17.54 2 12.04 2zm0 18.12h-.01a8.2 8.2 0 01-4.18-1.15l-.3-.18-3.07.8.82-2.99-.2-.31a8.2 8.2 0 01-1.26-4.32c0-4.52 3.68-8.2 8.2-8.2 2.19 0 4.25.85 5.8 2.4a8.15 8.15 0 012.4 5.81c0 4.52-3.68 8.2-8.2 8.2zm4.5-6.14c-.25-.13-1.47-.73-1.7-.81-.23-.08-.39-.13-.55.13-.16.25-.63.81-.77.97-.14.17-.28.19-.52.06-.25-.13-1.03-.38-1.96-1.21-.73-.65-1.22-1.45-1.36-1.69-.14-.25-.01-.38.11-.5.11-.11.25-.28.37-.42.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.44-.06-.13-.55-1.33-.76-1.82-.2-.48-.4-.42-.55-.43h-.47c-.16 0-.42.06-.64.31-.22.25-.84.82-.84 2s.86 2.32.98 2.48c.12.17 1.69 2.58 4.09 3.62.57.25 1.01.4 1.35.51.57.18 1.09.15 1.5.09.46-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.1-.22-.16-.47-.29z"/>
-                            </svg>
+                        <input type="hidden" name="product_id" value="{{ $product->id }}">
+                        <input type="hidden" name="quantity" value="1">
 
-                            Order via WhatsApp
-                        </a>
+                        <button type="submit"
+                                class="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 hover:bg-orange-600 px-6 py-3.5 text-sm font-bold text-white transition-colors">
+                            🛒 Add to cart
+                        </button>
+                    </form>
 
-                    @endif
-
-                    <!-- @if($product->product_link)
-
-                        <a
-                            href="{{ $product->product_link }}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-300 bg-white text-gray-800 font-semibold px-5 py-3.5 hover:border-gray-500 hover:bg-gray-50 transition-colors"
-                        >
-                            View source
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                            </svg>
-                        </a>
-
-                    @endif -->
+                    <a href="{{ $product->whatsapp_order_link }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white hover:bg-zinc-50 px-6 py-3.5 text-sm font-semibold text-zinc-800 transition-colors">
+                        Contact us on WhatsApp
+                    </a>
 
                 </div>
 
